@@ -4,7 +4,9 @@ import 'firebase_options.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/screens/form_screen.dart';
 import 'ui/screens/resultados_screen.dart';
-import 'ui/screens/pokemon_parceiro_screen.dart'; // NOVO
+import 'ui/screens/pokemon_parceiro_screen.dart';
+import 'ui/screens/registro_screen.dart';
+import 'ui/screens/lista_usuarios_screen.dart'; // NOVO
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +38,9 @@ class FormApp extends StatelessWidget {
       routes: {
         '/form': (context) => const FormScreen(),
         '/results': (context) => const ResultadosScreen(),
-        '/parceiro': (context) => const PokemonParceiroScreen(), // NOVO
+        '/parceiro': (context) => const PokemonParceiroScreen(),
+        '/registro': (context) => const RegistroScreen(),
+        '/lista_usuarios': (context) => const ListaUsuariosScreen(), // NOVO
       },
     );
   }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // NOVO
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'DadosPessoaisScreen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,7 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _senhaCtrl = TextEditingController();
 
   final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance; // NOVO
+  final _firestore = FirebaseFirestore.instance;
 
   Color get _hint => Colors.grey.shade600;
   BorderRadius get _radius => BorderRadius.circular(12);
@@ -32,14 +32,12 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // FUNÇÃO LOGIN MODIFICADA
   void _login() async {
     if (_formKey.currentState?.validate() ?? false) {
       try {
         final email = _emailCtrl.text.trim();
         final senha = _senhaCtrl.text.trim();
 
-        // 1. Fazer o login
         final userCredential = await _auth.signInWithEmailAndPassword(
           email: email,
           password: senha,
@@ -48,40 +46,52 @@ class _HomeScreenState extends State<HomeScreen> {
         final user = userCredential.user;
         if (user == null) return;
 
-        // 2. Buscar os dados do usuário no Firestore
+        // --- LÓGICA DE DIRECIONAMENTO ---
         final doc = await _firestore.collection('usuarios').doc(user.uid).get();
-
-        String telaDestino = '/';
-        bool quizConcluido = false;
+        String telaDestino = '/'; // Rota padrão
 
         if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
-          // Verifica se o quiz_habitos existe e se quiz_concluido é true
-          if (data.containsKey('quiz_habitos') &&
-              data['quiz_habitos']['quiz_concluido'] == true) {
-            quizConcluido = true;
-          }
-        }
+          final dadosPessoais = data['dados_pessoais'] as Map<String, dynamic>? ?? {};
+          final tipoUsuario = dadosPessoais['tipo_usuario'];
 
-        // 3. Decidir para onde navegar
-        if (quizConcluido) {
-          // Se já respondeu o quiz, vai para os resultados
-          telaDestino = '/results';
+          // 1. É Professor?
+          if (tipoUsuario == 'Professor') {
+            telaDestino = '/lista_usuarios';
+          } 
+          // 2. É Aluno?
+          else {
+            final quizHabitos = data['quiz_habitos'] as Map<String, dynamic>? ?? {};
+            final bool quizConcluido = quizHabitos['quiz_concluido'] == true;
+
+            if (quizConcluido) {
+              // Já respondeu? Vai para os resultados.
+              telaDestino = '/results';
+            } else {
+              // Não respondeu? Vai para o formulário.
+              // (Mandamos para DadosPessoais pois é a primeira etapa)
+              if (mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DadosPessoaisScreen()),
+                );
+              }
+              return; // Já navegamos, encerra a função aqui.
+            }
+          }
         } else {
-          // Se é novo ou não terminou, vai para os dados pessoais
-          telaDestino = '/form';
-          // (Nota: seu app navega de DadosPessoais -> FormScreen,
-          //  mas sua rota '/form' vai direto pro quiz.
-          //  Vamos simplificar e navegar para a DadosPessoaisScreen direto)
+          // Documento não existe? (Ex: usuário do Auth antigo)
+          // Manda para o formulário de dados pessoais.
           if (mounted) {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const DadosPessoaisScreen()),
             );
           }
-          return; // Retorna aqui pois já navegamos
+          return; // Já navegamos.
         }
 
+        // Navega para a tela destino decidida
         if (mounted) {
           Navigator.pushNamed(context, telaDestino);
         }
@@ -107,61 +117,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // FUNÇÃO REGISTRAR MODIFICADA (para ir para a tela certa)
-  void _registrar() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      try {
-        final email = _emailCtrl.text.trim();
-        final senha = _senhaCtrl.text.trim();
-
-        if (senha.length < 6) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('A senha deve ter no mínimo 6 caracteres.'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-          return;
-        }
-
-        await _auth.createUserWithEmailAndPassword(
-          email: email,
-          password: senha,
-        );
-
-        // Após registrar, sempre vai para a tela de Dados Pessoais
-        if (mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const DadosPessoaisScreen()),
-          );
-        }
-      } on FirebaseAuthException catch (e) {
-        String message = 'Ocorreu um erro no registro.';
-        if (e.code == 'weak-password') {
-          message = 'A senha é muito fraca.';
-        } else if (e.code == 'email-already-in-use') {
-          message = 'Este email já está em uso.';
-        } else if (e.code == 'invalid-email') {
-          message = 'Email inválido.';
-        }
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  //
-  // O RESTANTE DO CÓDIGO (O MÉTODO 'build')
-  // CONTINUA EXATAMENTE O MESMO DE ANTES
-  //
   @override
   Widget build(BuildContext context) {
     const Color textPrimary = Colors.black87;
@@ -306,7 +261,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: _registrar,
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/registro');
+                    },
                     child: const Text(
                       'Não tem conta? Registrar-se',
                       style: TextStyle(fontSize: 14),
